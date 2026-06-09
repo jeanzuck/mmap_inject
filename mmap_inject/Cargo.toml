@@ -2,9 +2,16 @@
 name = "mmap_inject"
 version = "0.1.0"
 edition = "2024"
+description = "Manual-map DLL injection for Windows x64 — inject DLLs without LoadLibrary"
+license = "MIT"
+repository = "https://github.com/jeanzuck/mmap_inject"
+documentation = "https://docs.rs/mmap_inject"
+readme = "../README.md"
+keywords = ["dll-injection", "manual-map", "windows", "x64", "shellcode"]
+categories = ["os::windows-apis", "development-tools::ffi"]
 
 [dependencies]
-windows-sys = { version = "0.59", features = [
+windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
     "Win32_System_Memory",
     "Win32_System_Threading",

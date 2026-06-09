@@ -1,4 +1,4 @@
-//! Core injection logic: memory allocation, shellcode dispatch, tracking, cleanup.
+//! Core injection logic: memory allocation, shellcode dispatch, cleanup.
 
 use windows_sys::Win32::{
     Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE},

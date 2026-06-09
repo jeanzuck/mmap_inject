@@ -1,48 +1,14 @@
-//! Auto-injector — finds `test_exe.exe`, injects `test_dll.dll` from current dir.
+//! Self-injector — injects `test_dll.dll` into a process.
+//!
+//! Usage:
+//!   test_injector          → inject into self
+//!   test_injector <PID>    → inject into target PID
 
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, path::PathBuf, time::Duration};
 use windows_sys::Win32::{
     Foundation::{CloseHandle, HANDLE},
-    System::{
-        Diagnostics::ToolHelp::{
-            CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
-            TH32CS_SNAPPROCESS,
-        },
-        Threading::{OpenProcess, PROCESS_ALL_ACCESS},
-    },
+    System::Threading::{GetCurrentProcessId, OpenProcess, PROCESS_ALL_ACCESS},
 };
-
-fn find_process(target: &str) -> Option<u32> {
-    unsafe {
-        let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if snap == -1isize as HANDLE {
-            return None;
-        }
-        let mut pe = std::mem::zeroed::<PROCESSENTRY32W>();
-        pe.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-        if Process32FirstW(snap, &mut pe) == 0 {
-            CloseHandle(snap);
-            return None;
-        }
-        loop {
-            let exe = widestr(&pe.szExeFile);
-            if exe.eq_ignore_ascii_case(target) {
-                CloseHandle(snap);
-                return Some(pe.th32ProcessID);
-            }
-            if Process32NextW(snap, &mut pe) == 0 {
-                break;
-            }
-        }
-        CloseHandle(snap);
-    }
-    None
-}
-
-unsafe fn widestr(ptr: &[u16; 260]) -> String {
-    let len = ptr.iter().position(|&c| c == 0).unwrap_or(ptr.len());
-    String::from_utf16_lossy(&ptr[..len])
-}
 
 fn find_dll() -> PathBuf {
     let mut exe = env::current_exe().expect("cannot get exe path");
@@ -52,28 +18,50 @@ fn find_dll() -> PathBuf {
 }
 
 fn main() {
-    let dll_path = find_dll();
-    let dll_bytes = fs::read(&dll_path).unwrap_or_else(|e| {
-        eprintln!("ERROR: cannot read {}: {e}", dll_path.display());
-        std::process::exit(1);
-    });
+    let args: Vec<String> = env::args().collect();
 
-    let pid = find_process("test_exe.exe").unwrap_or_else(|| {
-        eprintln!("ERROR: test_exe.exe is not running. Start it first.");
+    let pid: u32 = if args.len() >= 2 {
+        args[1].parse().unwrap_or_else(|_| {
+            eprintln!("error: invalid PID: {}", args[1]);
+            std::process::exit(1);
+        })
+    } else {
+        unsafe { GetCurrentProcessId() }
+    };
+
+    let dll_bytes = fs::read(find_dll()).unwrap_or_else(|e| {
+        eprintln!("error: cannot read test_dll.dll: {e}");
         std::process::exit(1);
     });
 
     let h_proc = unsafe { OpenProcess(PROCESS_ALL_ACCESS, 0, pid) };
     if h_proc.is_null() || h_proc == -1isize as HANDLE {
-        eprintln!("ERROR: cannot open PID {pid}. Run as admin?");
+        eprintln!("error: cannot open PID {pid}");
         std::process::exit(1);
     }
 
-    print!("Injecting test_dll.dll into PID {pid}... ");
+    println!("mmap_inject — manual map injection test");
+    println!("  pid     : {pid}");
+    println!("  dll     : test_dll.dll  ({} bytes)", dll_bytes.len());
+    print!("  inject  : ");
+
     match unsafe { mmap_inject::inject_dll(h_proc, &dll_bytes) } {
-        Ok(()) => println!("Success"),
-        Err(e) => eprintln!("Failed: {e}"),
+        Ok(()) => {
+            println!("OK");
+            println!();
+            println!("  A MessageBox should appear in the target process.");
+            println!("  Press Ctrl+C to exit.");
+        }
+        Err(e) => {
+            println!("FAILED");
+            eprintln!("  {e}");
+            std::process::exit(1);
+        }
     }
 
     unsafe { CloseHandle(h_proc) };
+
+    loop {
+        std::thread::sleep(Duration::from_secs(1));
+    }
 }

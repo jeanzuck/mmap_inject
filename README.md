@@ -1,18 +1,17 @@
 # mmap_inject
 
-[![Rust](https://img.shields.io/badge/rust-nightly--2024-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-stable%201.85+-orange.svg)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![crates.io](https://img.shields.io/crates/v/mmap_inject.svg)](https://crates.io/crates/mmap_inject)
+[![docs.rs](https://docs.rs/mmap_inject/badge.svg)](https://docs.rs/mmap_inject)
 
 A minimal, robust manual-map DLL injection library for Windows x64, written in Rust.
-
-Ported from [ManualMapInjection](https://github.com/thetobysiu/ManualMapInjection) (C++) and refactored with a cleaner split: heavy PE processing runs in the injector process; a small, reliable shellcode handles only import resolution, TLS, SEH, and the DllMain call.
 
 ## Features
 
 - **Manual Mapping** — injects DLLs without `LoadLibrary`, evading basic user-mode hooks
 - **Randomized Base Address** — ASLR-style allocation in 64-bit user space (3 retries + OS fallback)
 - **SEH Support** — calls `RtlAddFunctionTable` for x64 structured exception handling
-- **Automatic Cleanup** — RAII guard zero-fills and frees injection on drop
 - **PE Header Wiping** — overwrites PE headers immediately after injection
 - **Import Resolution** — resolves normal import tables (IAT) and delayed imports
 - **TLS Callbacks** — executes `DLL_PROCESS_ATTACH` TLS callbacks
@@ -32,13 +31,14 @@ mmap_inject = "0.1.0"
 use mmap_inject::inject_dll;
 use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_ALL_ACCESS};
 
-// Inject a DLL into a target process
 let dll_bytes = std::fs::read("my_dll.dll")?;
 let h_proc = unsafe { OpenProcess(PROCESS_ALL_ACCESS, 0, target_pid) };
 
 unsafe {
-    inject_dll(h_proc, &dll_bytes)?;
-    println!("Injected!");
+    match inject_dll(h_proc, &dll_bytes) {
+        Ok(()) => println!("Injected!"),
+        Err(e) => eprintln!("Injection failed: {e}"),
+    }
 }
 ```
 
@@ -70,13 +70,6 @@ unsafe {
 └──────────────────────────────────────────────────────┘
 ```
 
-### Why the shellcode is this small
-
-The original C++ reference ran relocations inside the shellcode.  We moved
-relocations to the injector side (`ReadProcessMemory` → patch → `WriteProcessMemory`).
-This makes the shellcode much simpler and eliminates the need for inline
-assembly tricks — all PE parsing lives in safe Rust.
-
 ## API
 
 ### `inject_dll`
@@ -106,10 +99,12 @@ The process handle needs at minimum:
 
 ## Building
 
-Requires **Rust nightly** (edition 2024).
+Requires **Rust 1.85+** (edition 2024).  **Release mode is required** — debug
+builds are not supported because the compiler emits function calls (stack probes,
+non-inlined helpers) that fall outside the shellcode section.
 
 ```powershell
-cargo +nightly build --release
+cargo build --release
 ```
 
 ### Static CRT
@@ -131,12 +126,14 @@ so injected DLLs don't depend on `VCRUNTIME140.dll`.  It also enables
 ## Testing
 
 ```powershell
-# Unit tests (PE structs, RVA conversion, shellcode layout) — fast, no GUI
-cargo +nightly test -p mmap_inject
+# Unit tests — PE structs, RVA conversion, shellcode layout
+cargo test -p mmap_inject
 
-# Full end-to-end test (requires terminal interaction)
-cargo run -p test_exe          # terminal 1 — injection target
-cargo run -p test_injector     # terminal 2 — auto-injects test_dll.dll
+# Self-injection test — shows a MessageBox
+cargo run -p test_injector
+
+# Inject into a specific process by PID
+cargo run -p test_injector -- 12345
 ```
 
 ## Workspace
@@ -144,14 +141,9 @@ cargo run -p test_injector     # terminal 2 — auto-injects test_dll.dll
 | Crate | Description |
 |---|---|
 | `mmap_inject` | The injection library |
-| `test_dll` | Example DLL — shows `MessageBox("Hello from PID: xxx")` |
-| `test_exe` | Console target that prints its PID and waits |
-| `test_injector` | Auto-injector — finds `test_exe.exe`, injects `test_dll.dll` |
+| `test_dll` | Example DLL — `MessageBox("Hello from test_dll")` |
+| `test_injector` | Injector — `test_injector` (self) or `test_injector <PID>` |
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
----
-
-Ported from [thetobysiu/ManualMapInjection](https://github.com/thetobysiu/ManualMapInjection).

@@ -1,11 +1,13 @@
 //! Shellcode that executes inside the target process to complete manual mapping.
 //!
 //! # Design constraints
-//! - MUST NOT use any Rust standard library or runtime.
+//! - Only uses `core` APIs (no `std`, no heap allocation).
 //! - All external calls go through function pointers in `MappingCtx`; this
 //!   makes the code position-independent once copied to the remote process.
 //! - The shellcode lives in a dedicated linker section (`.sc`) with boundary
-//!   markers so we copy exactly the right bytes — never too few or too many.
+//!   markers so we copy exactly the right bytes.
+//! - Release builds only — debug builds emit stack probes and non-inlined
+//!   helpers that fall outside the `.sc` section.
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::pe::{
