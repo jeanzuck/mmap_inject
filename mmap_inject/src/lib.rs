@@ -60,7 +60,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// - `PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION`
 /// - `PROCESS_CREATE_THREAD`
 ///
-/// Returns an [`InjectionGuard`] that automatically cleans up when dropped.
+/// Returns `Ok(())` on success.  PE headers are wiped, shellcode and context
 ///
 /// # Safety
 /// The caller is responsible for providing a valid process handle.
