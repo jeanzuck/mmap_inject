@@ -291,19 +291,19 @@ mod tests {
 
     #[test]
     fn validate_real_dll() {
-        // Locate test_dll.dll from the workspace target directory.
+        // Locate test_dll.dll from the examples output directory.
         let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let dll_path = manifest.parent().unwrap().join("target/debug/test_dll.dll");
+        let dll_path = manifest.join("target/debug/examples/test_dll.dll");
         let bytes = std::fs::read(&dll_path)
-            .unwrap_or_else(|_| panic!("build test_dll first: {}", dll_path.display()));
+            .unwrap_or_else(|_| panic!("build test_dll example first: {}", dll_path.display()));
         assert!(validate(&bytes), "test_dll.dll should be a valid x64 PE");
     }
 
     #[test]
     fn test_dll_has_expected_sections() {
         let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let dll_path = manifest.parent().unwrap().join("target/debug/test_dll.dll");
-        let bytes = std::fs::read(&dll_path).expect("build test_dll first");
+        let dll_path = manifest.join("target/debug/examples/test_dll.dll");
+        let bytes = std::fs::read(&dll_path).expect("build test_dll example first");
         assert!(validate(&bytes));
 
         let nt = unsafe { nt_headers(bytes.as_ptr()) };

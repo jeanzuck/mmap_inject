@@ -24,7 +24,7 @@ A minimal, robust manual-map DLL injection library for Windows x64, written in R
 ```toml
 # Cargo.toml
 [dependencies]
-mmap_inject = "0.1.0"
+mmap_inject = "0.1"
 ```
 
 ```rust
@@ -109,7 +109,7 @@ cargo build --release
 
 ### Static CRT
 
-The workspace `.cargo/config.toml` enables `+crt-static` (equivalent to MSVC `/MT`)
+The `.cargo/config.toml` enables `+crt-static` (equivalent to MSVC `/MT`)
 so injected DLLs don't depend on `VCRUNTIME140.dll`.  It also enables
 `/DYNAMICBASE` for full `.reloc` section generation.
 
@@ -125,24 +125,31 @@ so injected DLLs don't depend on `VCRUNTIME140.dll`.  It also enables
 
 ## Testing
 
+**All build/run commands require `--release`** — the shellcode lives in a
+custom linker section (`.sc`) and debug builds emit stack probes +
+non-inlined helpers that break the section layout.
+
 ```powershell
 # Unit tests — PE structs, RVA conversion, shellcode layout
-cargo test -p mmap_inject
+cargo test --release
+
+# Build examples (test_dll.dll + test_injector.exe)
+cargo build --examples --release
 
 # Self-injection test — shows a MessageBox
-cargo run -p test_injector
+cargo run --example test_injector --release
 
 # Inject into a specific process by PID
-cargo run -p test_injector -- 12345
+cargo run --example test_injector --release -- 12345
 ```
 
-## Workspace
+## Project Structure
 
-| Crate | Description |
+| Path | Description |
 |---|---|
-| `mmap_inject` | The injection library |
-| `test_dll` | Example DLL — `MessageBox("Hello from test_dll")` |
-| `test_injector` | Injector — `test_injector` (self) or `test_injector <PID>` |
+| `src/` | The `mmap_inject` library — manual-map DLL injection |
+| `examples/test_dll.rs` | Example DLL — `MessageBox("Hello from test_dll")` |
+| `examples/test_injector.rs` | Injector — self-inject or `test_injector <PID>` |
 
 ## License
 

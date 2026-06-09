@@ -25,7 +25,6 @@ pub unsafe extern "system" fn DllMain(
 ) -> i32 {
     if reason == 1 {
         // DLL_PROCESS_ATTACH
-        #[cfg(not(feature = "no_gui"))]
         unsafe {
             CreateThread(
                 core::ptr::null(),

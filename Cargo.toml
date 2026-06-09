@@ -1,3 +1,38 @@
-[workspace]
-resolver = "3"
-members = ["mmap_inject", "test_dll", "test_injector"]
+[package]
+name = "mmap_inject"
+version = "0.1.1"
+edition = "2024"
+description = "Manual-map DLL injection for Windows x64 — inject DLLs without LoadLibrary"
+license = "MIT"
+repository = "https://github.com/jeanzuck/mmap_inject"
+documentation = "https://docs.rs/mmap_inject"
+readme = "README.md"
+keywords = ["dll-injection", "manual-map", "windows", "x64", "shellcode"]
+categories = ["os::windows-apis", "development-tools::ffi"]
+
+[dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_System_Memory",
+    "Win32_System_Threading",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_Security",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemInformation",
+] }
+
+[dev-dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[[example]]
+name = "test_dll"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "test_injector"
+path = "examples/test_injector.rs"

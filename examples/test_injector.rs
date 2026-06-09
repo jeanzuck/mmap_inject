@@ -1,8 +1,9 @@
 //! Self-injector — injects `test_dll.dll` into a process.
 //!
 //! Usage:
-//!   test_injector          → inject into self
-//!   test_injector <PID>    → inject into target PID
+//!   cargo build --examples
+//!   cargo run --example test_injector          → inject into self
+//!   cargo run --example test_injector -- <PID> → inject into target PID
 
 use std::{env, fs, path::PathBuf, time::Duration};
 use windows_sys::Win32::{
@@ -11,9 +12,30 @@ use windows_sys::Win32::{
 };
 
 fn find_dll() -> PathBuf {
+    // 1) Next to the running executable (e.g. after `cargo build --examples`)
     let mut exe = env::current_exe().expect("cannot get exe path");
     exe.pop();
     exe.push("test_dll.dll");
+    if exe.exists() {
+        return exe;
+    }
+
+    // 2) Fallback: CARGO_MANIFEST_DIR / target / <profile> / examples /
+    let profile = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
+    let from_manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("target")
+        .join(profile)
+        .join("examples")
+        .join("test_dll.dll");
+    if from_manifest.exists() {
+        return from_manifest;
+    }
+
+    // 3) Return the first path as default (error message will be clear).
     exe
 }
 
@@ -29,8 +51,13 @@ fn main() {
         unsafe { GetCurrentProcessId() }
     };
 
-    let dll_bytes = fs::read(find_dll()).unwrap_or_else(|e| {
-        eprintln!("error: cannot read test_dll.dll: {e}");
+    let dll_path = find_dll();
+    let dll_bytes = fs::read(&dll_path).unwrap_or_else(|e| {
+        eprintln!(
+            "error: cannot read {}: {e}\n\
+             hint: run `cargo build --example test_dll` first",
+            dll_path.display()
+        );
         std::process::exit(1);
     });
 
@@ -42,7 +69,11 @@ fn main() {
 
     println!("mmap_inject — manual map injection test");
     println!("  pid     : {pid}");
-    println!("  dll     : test_dll.dll  ({} bytes)", dll_bytes.len());
+    println!(
+        "  dll     : {}  ({} bytes)",
+        dll_path.display(),
+        dll_bytes.len()
+    );
     print!("  inject  : ");
 
     match unsafe { mmap_inject::inject_dll(h_proc, &dll_bytes) } {
